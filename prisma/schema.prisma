@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Definimos nosso Enum de Status aqui
+enum SubmissionStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Nosso modelo (tabela) de Submissions
+model Submission {
+  id              String           @id @default(uuid())
+  status          SubmissionStatus @default(IN_PROGRESS)
+  current_step    Int              @default(1)
+  form_data       Json?            // O '?' torna o campo opcional (nullable)
+  started_at      DateTime         @default(now())
+  last_updated_at DateTime         @updatedAt
+  completed_at    DateTime?
+}

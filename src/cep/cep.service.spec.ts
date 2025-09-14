@@ -1,31 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CepService } from './cep.service';
-import { HttpService } from '@nestjs/axios';
 import { NotFoundException } from '@nestjs/common';
-import { of, throwError } from 'rxjs';
 
-const mockHttpService = {
-  get: jest.fn(),
+const mockCepProvider = {
+  findAddressByCep: jest.fn(),
 };
 
 describe('CepService', () => {
   let service: CepService;
-  let httpService: HttpService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CepService,
         {
-          provide: HttpService,
-          useValue: mockHttpService,
+          provide: 'CepProvider',
+          useValue: mockCepProvider,
         },
       ],
     }).compile();
 
     service = module.get<CepService>(CepService);
-    httpService = module.get<HttpService>(HttpService);
-
     jest.clearAllMocks();
   });
 
@@ -36,13 +31,6 @@ describe('CepService', () => {
   describe('findAddressByCep', () => {
     it('should return a formatted address when a valid CEP is provided', async () => {
       const cep = '01001000';
-      const mockViaCepResponse = {
-        cep: '01001-000',
-        logradouro: 'Praça da Sé',
-        bairro: 'Sé',
-        localidade: 'São Paulo',
-        uf: 'SP',
-      };
       const expectedAddress = {
         cep: '01001-000',
         street: 'Praça da Sé',
@@ -51,39 +39,29 @@ describe('CepService', () => {
         state: 'SP',
       };
 
-      mockHttpService.get.mockReturnValue(of({ data: mockViaCepResponse }));
+      mockCepProvider.findAddressByCep.mockResolvedValue(expectedAddress);
 
       const result = await service.findAddressByCep(cep);
-
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(httpService.get).toHaveBeenCalledTimes(1);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(httpService.get).toHaveBeenCalledWith(
-        `https://viacep.com.br/ws/${cep}/json/`,
-      );
+      expect(mockCepProvider.findAddressByCep).toHaveBeenCalledTimes(1);
+      expect(mockCepProvider.findAddressByCep).toHaveBeenCalledWith(cep);
       expect(result).toEqual(expectedAddress);
     });
 
-    it('should throw a NotFoundException when the CEP is not found by the external API', async () => {
+    it('should throw a NotFoundException when the CEP is not found by the provider', async () => {
       const cep = '99999999';
-      const mockErrorResponse = {
-        erro: true,
-      };
-
-      mockHttpService.get.mockReturnValue(of({ data: mockErrorResponse }));
-
+      mockCepProvider.findAddressByCep.mockRejectedValue(
+        new NotFoundException('CEP não encontrado.'),
+      );
       await expect(service.findAddressByCep(cep)).rejects.toThrow(
         NotFoundException,
       );
     });
 
-    it('should throw a NotFoundException when the external API call fails', async () => {
+    it('should throw a NotFoundException when the provider throws an error', async () => {
       const cep = '00000000';
-
-      mockHttpService.get.mockReturnValue(
-        throwError(() => new Error('Network error')),
+      mockCepProvider.findAddressByCep.mockRejectedValue(
+        new NotFoundException('Não foi possível buscar o CEP'),
       );
-
       await expect(service.findAddressByCep(cep)).rejects.toThrow(
         NotFoundException,
       );
